@@ -1,0 +1,1 @@
+mpicxx ./universal_minimizer_mpi.cpp -o mpi_um -O2 -std=c++11
