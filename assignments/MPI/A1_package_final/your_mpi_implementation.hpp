@@ -18,11 +18,6 @@
 #include <memory>
 #include <mpi.h>
 
-#define BATCH_SIZE 32
-#define RESULT_TAG 1
-#define EXIT_TAG 2
-#define REQUEST_TAG 3
-
 using namespace std;
 
 /// @brief Generate universal minimizer lists for each read in parallel using MPI.
@@ -42,7 +37,7 @@ void gen_um_lists_MPI(MPI_Comm comm, int my_rank, int num_process, int k, int n,
     MPI_Bcast(&n, 1, MPI_INT, 0, comm);
 
     int reads_every_proc = n / num_process;//# of each proc
-    int remain = n % num_process;//yushu
+    int remain = n % num_process;//
     int my_read_count = (my_rank < remain) ? (reads_every_proc + 1) : reads_every_proc;
     int my_start = (my_rank < remain) ? (my_rank * (reads_every_proc + 1)) : (remain * (reads_every_proc + 1) + (my_rank - remain) * reads_every_proc);
     int total_length = 0;
@@ -60,11 +55,11 @@ void gen_um_lists_MPI(MPI_Comm comm, int my_rank, int num_process, int k, int n,
     MPI_Bcast(reads_CSR, total_length, MPI_CHAR, 0, comm);// bad attempt but its hard to chunk...
 
     vector<vector<kmer_t>> local_um_lists(my_read_count);
-    for (int i = 0; i < my_read_count; i++)//slice
+    for (int i = 0; i < my_read_count; i++)//get the local res
     {
-        int read_idx = my_start + i;
-        int read_length = reads_CSR_offs[read_idx + 1] - reads_CSR_offs[read_idx];
-        string read(reads_CSR + reads_CSR_offs[read_idx], read_length);
+        int my_i = my_start + i;
+        int read_length = reads_CSR_offs[my_i + 1] - reads_CSR_offs[my_i];
+        string read(reads_CSR + reads_CSR_offs[my_i], read_length);
         local_um_lists[i] = generate_universal_minimizer_list(k, read);
     }
 
@@ -74,27 +69,27 @@ void gen_um_lists_MPI(MPI_Comm comm, int my_rank, int num_process, int k, int n,
         for (int i = 0; i < my_read_count; i++) um_lists[my_start + i] = local_um_lists[i];
         for (int proc = 1; proc < num_process; proc++) // get res form others
         {
-            int proc_my_start;
-            int proc_read_count;
+            int _my_start;
+            int _read_count;
             if (proc < remain)
             {
-                proc_my_start = proc * (reads_every_proc + 1);
-                proc_read_count = reads_every_proc + 1;
+                _my_start = proc * (reads_every_proc + 1);
+                _read_count = reads_every_proc + 1;
             }
             else
             {
-                proc_my_start = remain * (reads_every_proc + 1) + (proc - remain) * reads_every_proc;
-                proc_read_count = reads_every_proc;
+                _my_start = remain * (reads_every_proc + 1) + (proc - remain) * reads_every_proc;
+                _read_count = reads_every_proc;
             }
-            for (int i = 0; i < proc_read_count; i++)
+            for (int i = 0; i < _read_count; i++)
             {
-                int global_idx = proc_my_start + i;
-                int list_size;
-                MPI_Recv(&list_size, 1, MPI_INT, proc, 0, comm, MPI_STATUS_IGNORE);
-                um_lists[global_idx].resize(list_size);
-                if (list_size > 0)
+                int rebuilt_i = _my_start + i;
+                int _size;
+                MPI_Recv(&_size, 1, MPI_INT, proc, 0, comm, MPI_STATUS_IGNORE);
+                um_lists[rebuilt_i].resize(_size);
+                if (_size > 0)
                 {
-                    MPI_Recv(um_lists[global_idx].data(), list_size * sizeof(kmer_t), MPI_BYTE,
+                    MPI_Recv(um_lists[rebuilt_i].data(), _size * sizeof(kmer_t), MPI_BYTE,
                              proc, 0, comm, MPI_STATUS_IGNORE);
                 }
             }
@@ -104,11 +99,11 @@ void gen_um_lists_MPI(MPI_Comm comm, int my_rank, int num_process, int k, int n,
     {
         for (int i = 0; i < my_read_count; i++)//send res to rank 0
         {
-            int list_size = local_um_lists[i].size();
-            MPI_Send(&list_size, 1, MPI_INT, 0, 0, comm);
-            if (list_size > 0)
+            int _size = local_um_lists[i].size();
+            MPI_Send(&_size, 1, MPI_INT, 0, 0, comm);
+            if (_size > 0)
             {
-                MPI_Send(local_um_lists[i].data(), list_size * sizeof(kmer_t), MPI_BYTE, 0, 0, comm);
+                MPI_Send(local_um_lists[i].data(), _size * sizeof(kmer_t), MPI_BYTE, 0, 0, comm);
             }
         }
     }
