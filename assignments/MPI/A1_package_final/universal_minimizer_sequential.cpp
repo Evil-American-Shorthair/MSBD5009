@@ -16,7 +16,7 @@ using namespace std;
 
 int k, n;   // k: k-value of k-mer, n: number of reads
 string input_filename;
-string output_filename = "./output.txt";
+string output_filename = "./s_output.txt";
 
 int main(int argc, char **argvs) {
     if (argc < 2) {
